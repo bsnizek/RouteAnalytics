@@ -7,6 +7,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -15,6 +16,7 @@ import org.geotools.data.DataStoreFinder;
 import org.geotools.data.DataUtilities;
 import org.geotools.data.DefaultTransaction;
 import org.geotools.data.FeatureSource;
+import org.geotools.data.Transaction;
 import org.geotools.data.shapefile.ShapefileDataStore;
 import org.geotools.data.shapefile.ShapefileDataStoreFactory;
 import org.geotools.data.simple.SimpleFeatureCollection;
@@ -42,21 +44,45 @@ import com.vividsolutions.jts.geom.Point;
 public class GenerateNonExperiencePoints {
 
 	class NEPPoint {
-		
+
 		private int respondentid;
+		private int sourceRouteID;
 		private LineString segment;
+		private Point geometry;
+		private LineString originDestination;
+
+		public LineString getOriginDestination() {
+			return originDestination;
+		}
+
+
+		public void setOriginDestination(LineString originDestination) {
+			this.originDestination = originDestination;
+		}
+
+
+		public NEPPoint(Point p,  int respondentid, int sourceRouteID) {
+			this.geometry = p;
+			this.respondentid = respondentid;
+			this.sourceRouteID = sourceRouteID;
+		}
+
+
+		public int getSourceRouteID() {
+			return sourceRouteID;
+		}
+
+		public void setSourceRouteID(int sourceRouteID) {
+			this.sourceRouteID = sourceRouteID;
+		}
+
+
 		public LineString getSegment() {
+
 			return segment;
 		}
 
-		private Point geometry;
-		
-		
-		public NEPPoint(Point p, int respondentid) {
-			this.geometry = p;
-			this.respondentid = respondentid;
-		}
-		
+
 		public Point getGeometry() {
 			return geometry;
 		}
@@ -75,19 +101,33 @@ public class GenerateNonExperiencePoints {
 
 		public void setSegment(LineString segment) {
 			this.segment = segment;
+
+		}
+
+
+
+
+		public void setOD(LineString originDestination) {
+			this.originDestination = originDestination;
+			
+		}
+
+
+		public Double getODAngle() {
+			// System.out.println(nearSegment);
+			return getAngle(originDestination,
+					this.getSegment()
+					);
 			
 		}
 
 	}
 
-	private static SimpleFeatureType outFileTYPE;
 	private String polyLineFilename;
 	private int measureDistance;
 	private String polylineTypeName;
 	private SimpleFeatureSource polylineSource;
 	private File polyinefile;
-	private SimpleFeatureBuilder featureBuilder;
-	private SimpleFeatureCollection pointCollection;
 	GeometryFactory factory = new GeometryFactory();
 	private ArrayList<NEPPoint> points;
 	private ArrayList<SimpleFeatureCollection> pointCollections = new ArrayList<SimpleFeatureCollection>();
@@ -97,13 +137,6 @@ public class GenerateNonExperiencePoints {
 		polyLineFilename = polylinefilename;
 		measureDistance = measuredistance;
 	}
-
-	private void initializeFeatureCollection() throws SchemaException {
-
-		pointCollection = FeatureCollections.newCollection();
-		featureBuilder = new SimpleFeatureBuilder(outFileTYPE);
-	}
-
 
 	private void run() throws IOException {
 		polyinefile = new File(polyLineFilename);
@@ -131,14 +164,31 @@ public class GenerateNonExperiencePoints {
 			SimpleFeature sf = iterator.next();
 			MultiLineString ls = (MultiLineString) sf.getDefaultGeometry();
 
+			System.out.println(sf);
+
+			Object xx = sf.getAttribute("respondent");
+
+			int sourceRouteID = (Integer) (Integer) sf.getAttribute("sr");
+			int respondent = (Integer) sf.getAttribute("respid");
+
 			Coordinate[] cs = ls.getCoordinates(); // the coordinates of the polyline
 			int nCoord = cs.length;	// number of coordinates
 
+			
+			ArrayList<Coordinate> coordinatesList = new ArrayList<Coordinate>(Arrays.asList(cs));  
+			Coordinate origin = coordinatesList.get(0);
+			Coordinate destination = coordinatesList.get(coordinatesList.size()-1);
+			
+			// we build a line from Origin to Destination
+			Coordinate[] cOD = new Coordinate[2];
+			cOD[0] = origin;
+			cOD[1] = destination;
+
+			LineString originDestination = factory.createLineString(cOD);
+			
 			double l = 0;			// length on the current polyline segment
-			int pcounter = 0;		// the point counter
 
 			for (int i=1; i<nCoord; i++) {
-				System.out.print(".");
 				Coordinate pt0 = cs[i-1];
 				Coordinate pt1 = cs[i];
 				double distance = pt0.distance(pt1);
@@ -146,20 +196,22 @@ public class GenerateNonExperiencePoints {
 				double deltaY = (pt1.y - pt0.y) / distance;
 
 				while (l <= distance) {	// loop up to the end of the current segment
-					pcounter++;
+					//					pcounter++;
 
 					double newX = pt0.x + l*deltaX;
 					double newY = pt0.y + l*deltaY;
 					Coordinate c1 = new Coordinate(newX, newY);
 
-					NEPPoint np = new NEPPoint(factory.createPoint(c1), 0);
-					
+					NEPPoint np = new NEPPoint(factory.createPoint(c1), respondent, sourceRouteID);
+
 					Coordinate[] cSegment = {pt0, pt1};
-					np.setSegment(factory.createLineString(cSegment));
 					
+					np.setSegment(factory.createLineString(cSegment));
+					np.setOriginDestination(originDestination);
+					np.setOD(originDestination);
+
 					points.add(np);
-					pcounter++;
-					// session.save(sp);
+
 					l += measureDistance;
 				}
 				l -= distance;	// = remaining distance on the next segment 
@@ -170,9 +222,67 @@ public class GenerateNonExperiencePoints {
 
 	}
 
-	private void writeFeaturesToShapefile(String filename) throws IOException {
+	private void writeFeaturesToShapefile(String filename) throws IOException, SchemaException {
+
+		SimpleFeatureType TYPE = DataUtilities.createType(
+				"Location",                   // <- the name for our feature type
+				"location:Point:srid=4400," + // <- the geometry attribute: Point type
+				"orouteFID:Integer," + 
+				"opointFID:Integer," + 			// the ID of the original point 
+				"respondent:Integer," +			// the respondentid
+				"distance:Double," + 			// Distance between point and it's projection on the route
+				"seg_angle:Double," +           // <- a Double attribute
+				"dst_twnh:Double," + 			// distance to townhall in meters
+				"ang_twnh:Double," + 			// angle from segment towards townhall
+				"dist_drct:Double," + 			// distance from point to the direct line
+				"experience:Boolean"			// set true if an experience point
+				);
+
+		FeatureCollection<SimpleFeatureType, SimpleFeature> pointCollection;
+		SimpleFeatureBuilder featureBuilder = new SimpleFeatureBuilder(TYPE);
+		SimpleFeatureCollection collection = FeatureCollections.newCollection();
+
+		for (NEPPoint n: points) {
+
+			Point p1 = n.getSegment().getStartPoint();
+			Point p2 = TOWNHALL;
+
+			Coordinate[] pTownhall = {p1.getCoordinate(), p2.getCoordinate()};
+
+			LineString towardsTownhall = factory.createLineString(pTownhall);
+
+			Double angleToTownhall = getAngle(towardsTownhall,
+					n.getSegment()
+					);
+
+			// Point nearLocation = getNearLocation(n.getGeometry(), p);
+
+			// Double dist_drct = nearLocation.distance(originDestination);
+
+
+			Point geom = n.getGeometry();
+
+			SimpleFeature pointFeature = featureBuilder.buildFeature(null);
+			pointFeature.setDefaultGeometry(geom);
+			featureBuilder.add(n.getSourceRouteID());
+			featureBuilder.add(0);
+			featureBuilder.add(n.getRespondentid());
+			featureBuilder.add(0.0f);
+			featureBuilder.add(n.getODAngle()); // TODO compares the current segment to the OD line
+			featureBuilder.add(geom.distance(p2));		// distance to townhall
+			featureBuilder.add(angleToTownhall);
+			
+			
+
+			collection.add(pointFeature);
+
+		}
+
+		pointCollections.add(collection);
+
 
 		File newFile = new File(filename);
+		// File newFile = getNewShapeFile(file);
 
 		ShapefileDataStoreFactory dataStoreFactory = new ShapefileDataStoreFactory();
 
@@ -181,94 +291,36 @@ public class GenerateNonExperiencePoints {
 		params.put("create spatial index", Boolean.TRUE);
 
 		ShapefileDataStore newDataStore = (ShapefileDataStore) dataStoreFactory.createNewDataStore(params);
-		newDataStore.createSchema(outFileTYPE);
+		newDataStore.createSchema(TYPE);
 
-		/*
-		 * You can comment out this line if you are using the createFeatureType
-		 * method (at end of class file) rather than DataUtilities.createType
-		 */
+		// You can comment out this line if you are using the createFeatureType method (at end of
+		// class file) rather than DataUtilities.createType
 		newDataStore.forceSchemaCRS(DefaultGeographicCRS.WGS84);
 
-
-		/*
-		 * Write the features to the shapefile
-		 */
-
-
-
-		DefaultTransaction transaction = new DefaultTransaction("create");
+		Transaction transaction = new DefaultTransaction("create");
 
 		String typeName = newDataStore.getTypeNames()[0];
 		SimpleFeatureSource featureSource = newDataStore.getFeatureSource(typeName);
 
-
-		for (NEPPoint n: points) {
-			
-			Point p1 = n.getSegment().getStartPoint();
-			Point p2 = TOWNHALL;
-			
-			Coordinate[] pTownhall = {p1.getCoordinate(), p2.getCoordinate()};
-
-			LineString towardsTownhall = factory.createLineString(pTownhall);
-
-			Double angleToTownhall = getAngle(towardsTownhall,
-					n.getSegment()
-					);
-			
-			// Point nearLocation = getNearLocation(n.getGeometry(), p);
-			
-			// Double dist_drct = nearLocation.distance(originDestination);
-			
-			
-			Point geom = n.getGeometry();
-			featureBuilder.add(geom);
-			SimpleFeature pointFeature = featureBuilder.buildFeature(null);
-			pointCollection.add(pointFeature);
-			featureBuilder.add(0);
-			featureBuilder.add(0);
-			featureBuilder.add(n.getRespondentid());
-			featureBuilder.add(0.0f); // distance to projected point = zero
-			featureBuilder.add(0f); //angle TODO which one ? / maybe to OD ? 
-			featureBuilder.add(geom.distance(TOWNHALL));
-			featureBuilder.add(angleToTownhall);
-			featureBuilder.add(0.0f);
-			featureBuilder.add(true);
-		}
-		
-		pointCollections.add(pointCollection);
-		
 		if (featureSource instanceof SimpleFeatureStore) {
 			SimpleFeatureStore featureStore = (SimpleFeatureStore) featureSource;
 
-			for (FeatureCollection f: pointCollections) {
-
-
-				featureStore.setTransaction(transaction);
-				try {
-
-					System.out.println("SIZE: " + pointCollection.size());
-
-					featureStore.addFeatures(f);
-					transaction.commit();
-
-				} catch (Exception problem) {
-					problem.printStackTrace();
-					transaction.rollback();
-
-				} 
-
+			featureStore.setTransaction(transaction);
+			try {
+				featureStore.addFeatures(collection);
+				transaction.commit();
+			} catch (Exception problem) {
+				problem.printStackTrace();
+				transaction.rollback();
+			} finally {
+				transaction.close();
 			}
-
-
-			transaction.close();
-			System.out.println();
-			System.out.println("FINISHED");
-			System.exit(0); // success!
+			//System.exit(0); // success!
+			System.out.println("FILE written");
 		} else {
-			System.out.println(typeName + " does not support read/write access");
-			System.exit(1);
+			// logger.error(typeName + " does not support read/write access");
+			//System.exit(1);	// exit program with status 1 (error)
 		}
-
 
 
 	}
@@ -285,7 +337,7 @@ public class GenerateNonExperiencePoints {
 		polylineSource = dataStore.getFeatureSource(polylineTypeName);
 	}
 
-	
+
 	/**
 	 * 
 	 * Returns the angle between two vectors
@@ -322,26 +374,13 @@ public class GenerateNonExperiencePoints {
 	 */
 	public static void main(String[] args) throws SchemaException, IOException {
 
-		outFileTYPE = DataUtilities.createType(
-				"Location",                   // <- the name for our feature type
-				"location:Point:srid=4400," + // <- the geometry attribute: Point type
-				"orouteFID:Integer," + 
-				"opointFID:Integer," + 			// the ID of the original point 
-				"respondent:Integer," +			// the respondentid
-				"distance:Double," + 			// Distance between point and it's projection on the route
-				"seg_angle:Double," +           // <- a Double attribute
-				"dst_twnh:Double," + 			// distance to townhall in meters
-				"ang_twnh:Double," + 			// angle from segment towards townhall
-				"dist_drct:Double," + 			// distance from point to the direct line
-				"experience:Boolean"			// set true if an experience point
-				);
+
 
 		String polylinefilename = "/Users/besn/Dropbox/Bikeability/CopenhagenExperiencePoints/4-RoutesManuallyCorrected/routesManuallyCorrected.shp";
 		String outfilename = "/Users/besn/Dropbox/Bikeability/CopenhagenExperiencePoints/7-NonExperiencePointsLaidOut/NonExperiencePointsLaidOut.shp";
 		int measureDistance = 25; // distance between the points
 
 		GenerateNonExperiencePoints nep = new GenerateNonExperiencePoints(polylinefilename, measureDistance);
-		nep.initializeFeatureCollection();
 		nep.run();
 		nep.writeFeaturesToShapefile(outfilename);
 

@@ -9,7 +9,7 @@
 		<spatial.test.shp.version>20100819</spatial.test.shp.version>
 		<bundle.namespace>org.life.sl</bundle.namespace>
 		<build.plugins.plugin.version>1.0</build.plugins.plugin.version>
-		<development-dir>/Users/besn/git/RouteAnalyticss</development-dir>
+		<development-dir>/Users/besn/git/RouteAnalytics</development-dir>
 	 </properties>
 
 	<modelVersion>4.0.0</modelVersion>
@@ -67,15 +67,6 @@
 			<id>bsnizek</id>
 			<name>Bernhard Snizek</name>
 			<email>besn@life.ku.dk</email>
-			<timezone>+1</timezone>
-			<roles>
-				<role>Developer</role>
-			</roles>
-		</developer>
-		<developer>
-			<id>bb</id>
-			<name>Bernhard Barkow</name>
-			<email>bb@creativeeyes.at</email>
 			<timezone>+1</timezone>
 			<roles>
 				<role>Developer</role>

@@ -256,7 +256,7 @@ public class SnapExperiencePoints {
 				Coordinate origin = coordinatesList.get(0);
 				Coordinate destination = coordinatesList.get(coordinatesList.size()-1);
 
-				double euclidianDistance = origin.distance(destination);
+				// double euclidianDistance = origin.distance(destination);
 
 				// the euclidian distance comes here
 				// System.out.println(euclidianDistance);
