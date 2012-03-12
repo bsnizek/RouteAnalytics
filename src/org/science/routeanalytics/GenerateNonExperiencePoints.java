@@ -32,6 +32,7 @@ import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
 
 import com.vividsolutions.jts.geom.Coordinate;
+import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryFactory;
 import com.vividsolutions.jts.geom.LineString;
 import com.vividsolutions.jts.geom.MultiLineString;
@@ -50,6 +51,7 @@ public class GenerateNonExperiencePoints {
 		private LineString segment;
 		private Point geometry;
 		private LineString originDestination;
+		private int routeID;
 
 		public LineString getOriginDestination() {
 			return originDestination;
@@ -61,7 +63,7 @@ public class GenerateNonExperiencePoints {
 		}
 
 
-		public NEPPoint(Point p,  int respondentid, int sourceRouteID) {
+		public NEPPoint(Point p,  int respondentid) {
 			this.geometry = p;
 			this.respondentid = respondentid;
 			this.sourceRouteID = sourceRouteID;
@@ -120,6 +122,22 @@ public class GenerateNonExperiencePoints {
 					);
 			
 		}
+
+
+		public Geometry getOD() {
+			return this.originDestination;
+		}
+
+
+		public int getRouteID() {
+			// TODO Auto-generated method stub
+			return routeID;
+		}
+		
+		public void setRouteID(int rid) {
+			this.routeID = rid;
+		}
+		
 
 	}
 
@@ -202,13 +220,14 @@ public class GenerateNonExperiencePoints {
 					double newY = pt0.y + l*deltaY;
 					Coordinate c1 = new Coordinate(newX, newY);
 
-					NEPPoint np = new NEPPoint(factory.createPoint(c1), respondent, sourceRouteID);
+					NEPPoint np = new NEPPoint(factory.createPoint(c1), respondent);
 
 					Coordinate[] cSegment = {pt0, pt1};
 					
 					np.setSegment(factory.createLineString(cSegment));
 					np.setOriginDestination(originDestination);
 					np.setOD(originDestination);
+					np.setRouteID(sourceRouteID);
 
 					points.add(np);
 
@@ -262,18 +281,21 @@ public class GenerateNonExperiencePoints {
 
 			Point geom = n.getGeometry();
 
-			SimpleFeature pointFeature = featureBuilder.buildFeature(null);
-			pointFeature.setDefaultGeometry(geom);
+			
 			featureBuilder.add(n.getSourceRouteID());
+			featureBuilder.add(n.getRouteID());							// o routeFID
 			featureBuilder.add(0);
 			featureBuilder.add(n.getRespondentid());
-			featureBuilder.add(0.0f);
-			featureBuilder.add(n.getODAngle()); // TODO compares the current segment to the OD line
-			featureBuilder.add(geom.distance(p2));		// distance to townhall
-			featureBuilder.add(angleToTownhall);
+			featureBuilder.add(0.0f);						// distance to polyline, here its null as we are on the polyline
+			featureBuilder.add(n.getODAngle()); 			// TODO compares the current segment to the OD line
+			featureBuilder.add(geom.distance(p2));			// distance to townhall
+			featureBuilder.add(angleToTownhall);			// angle to townhall
+			featureBuilder.add(geom.distance(n.getOD()));					// snap distance to the OD line
+			featureBuilder.add(false);
 			
+			SimpleFeature pointFeature = featureBuilder.buildFeature(null);
+			pointFeature.setDefaultGeometry(geom);
 			
-
 			collection.add(pointFeature);
 
 		}
