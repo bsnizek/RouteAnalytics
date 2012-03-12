@@ -9,7 +9,7 @@
 		<spatial.test.shp.version>20100819</spatial.test.shp.version>
 		<bundle.namespace>org.life.sl</bundle.namespace>
 		<build.plugins.plugin.version>1.0</build.plugins.plugin.version>
-		<development-dir>/Users/besn/Projects/RouteAnalytics</development-dir>
+		<development-dir>/Users/besn/git/RouteAnalyticss</development-dir>
 	 </properties>
 
 	<modelVersion>4.0.0</modelVersion>
@@ -29,10 +29,10 @@
 		<connection>https</connection>
 		<developerConnection>Bernhard Snizek</developerConnection>
 		<tag>cool analysis geo research</tag>
-		<url>https://github.com/bsnizek/GoodBad</url>
+		<url>https://github.com/bsnizek/RouteAnalytics</url>
 	</scm>
 	<organization>
-		<name>Forest &amp; Landscape Denmark</name>
+		<name>Faculty of Sciences, University of Copenhagen</name>
 		<url>http://sl.life.ku.dk</url>
 	</organization>
 	<build>
